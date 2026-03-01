@@ -1,5 +1,7 @@
 # Shop Hub — Full-Stack AI E-Commerce Platform
 
+![Shop Hub Screenshot](frontend/public/Screenshot%202026-03-02%20005850.png)
+
 Shop Hub is a production-grade AI-powered e-commerce platform built with modern technologies. It features AI-driven product recommendations using OpenAI GPT-3.5, seamless Stripe payments, and a high-performance Redis-cached catalog. The platform includes JWT-based authentication with httpOnly cookies, Google OAuth, and secure password hashing. There's also a comprehensive admin dashboard with sales analytics and full inventory management.
 
 The frontend is built with React 19, TypeScript, Vite, Tailwind CSS, Zustand, and TanStack Query, while the backend uses FastAPI with Motor for async MongoDB and Redis caching through Upstash. The design is fully responsive and modern.
