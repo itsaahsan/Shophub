@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-primary font-sans;
+    line-height: 1.6;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold tracking-tighter;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-white px-6 py-2.5 rounded-lg font-semibold hover:opacity-90 transition-all duration-200 disabled:opacity-50 active:scale-95 flex items-center justify-center;
+  }
+  
+  .btn-secondary {
+    @apply bg-white text-primary border border-primary px-6 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 active:scale-95 flex items-center justify-center;
+  }
+  
+  .btn-danger {
+    @apply bg-red-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-red-700 transition-all duration-200 disabled:opacity-50 active:scale-95 flex items-center justify-center;
+  }
+  
+  .btn-success {
+    @apply bg-success text-white px-6 py-2.5 rounded-lg font-semibold hover:opacity-90 transition-all duration-200 disabled:opacity-50 active:scale-95 flex items-center justify-center;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-2.5 bg-white border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition-all duration-200 text-[15px];
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-hover hover:-translate-y-1;
+  }
+}
