@@ -65,3 +65,11 @@ coverage/
 
 # Misc
 nul
+
+# Images in public folder (optional - uncomment if needed)
+# frontend/public/*.png
+# frontend/public/*.jpg
+# frontend/public/*.jpeg
+
+# Backend
+backend/cookies.txt

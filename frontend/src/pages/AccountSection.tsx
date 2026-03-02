@@ -13,7 +13,7 @@ const AccountSection: React.FC = () => {
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-[400px] text-center">
-          <h1 className="text-4xl font-extrabold tracking-tighter text-primary mb-2">shophub</h1>
+          <h1 className="text-4xl font-extrabold tracking-tighter text-primary mb-2">Shophub</h1>
           <p className="text-muted text-sm mb-10">Sign in to access your account</p>
           <button
             onClick={() => navigate('/login')}

@@ -13,7 +13,7 @@ const PrivacyPolicy: React.FC = () => {
       </div>
 
       <p className="text-[15px] text-muted leading-relaxed">
-        shophub is a demo e‑commerce experience built for portfolio and interview purposes.
+        Shophub is a demo e‑commerce experience built for portfolio and interview purposes.
         We do not process real payments or ship physical products. Any data you enter in this
         environment (such as email, name, or address) is used only to simulate a real shopping flow.
       </p>

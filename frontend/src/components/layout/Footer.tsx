@@ -6,7 +6,7 @@ const Footer: React.FC = () => {
     <footer className="bg-white border-t border-border py-8 mt-8">
       <div className="container mx-auto px-4 flex flex-col items-center space-y-3 text-center">
         <p className="text-xs text-muted font-medium tracking-wide">
-          &copy; {new Date().getFullYear()} <span className="font-bold text-primary">shophub</span>. All rights reserved.
+          &copy; {new Date().getFullYear()} <span className="font-bold text-primary">Shophub</span>. All rights reserved.
         </p>
         <div className="flex flex-wrap justify-center gap-4 text-[11px] font-semibold uppercase tracking-widest">
           <Link to="/privacy" className="text-muted hover:text-primary transition-colors">

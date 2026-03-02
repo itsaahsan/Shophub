@@ -13,7 +13,7 @@ const Terms: React.FC = () => {
       </div>
 
       <p className="text-[15px] text-muted leading-relaxed">
-        shophub is a non‑commercial demonstration project. By using this site you understand
+        Shophub is a non‑commercial demonstration project. By using this site you understand
         that it is intended for learning, experimentation, and interview evaluation only.
         No real purchases are fulfilled and no guarantees are provided.
       </p>

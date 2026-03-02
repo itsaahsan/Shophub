@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mail, Github, Globe } from 'lucide-react';
+import { Mail, Github } from 'lucide-react';
 
 const Contact: React.FC = () => {
   return (
@@ -9,7 +9,7 @@ const Contact: React.FC = () => {
           Contact
         </h1>
         <p className="text-[15px] text-muted leading-relaxed">
-          This shophub demo was built to showcase full‑stack skills for top‑tier product teams:
+          This Shophub demo was built to showcase full‑stack skills for top‑tier product teams:
           API design, authentication, payments, caching, and a polished UX.
         </p>
       </div>
@@ -19,7 +19,7 @@ const Contact: React.FC = () => {
           <Mail className="w-4 h-4 text-accent" />
           <div>
             <p className="text-xs font-extrabold uppercase tracking-widest text-muted">Email</p>
-            <p className="text-sm text-primary font-semibold">your.email@example.com</p>
+            <p className="text-sm text-primary font-semibold">itsaahsan@gmail.com</p>
           </div>
         </div>
 
@@ -27,15 +27,7 @@ const Contact: React.FC = () => {
           <Github className="w-4 h-4 text-accent" />
           <div>
             <p className="text-xs font-extrabold uppercase tracking-widest text-muted">GitHub</p>
-            <p className="text-sm text-primary font-semibold">github.com/your-handle</p>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-3">
-          <Globe className="w-4 h-4 text-accent" />
-          <div>
-            <p className="text-xs font-extrabold uppercase tracking-widest text-muted">Portfolio</p>
-            <p className="text-sm text-primary font-semibold">your-portfolio-site.com</p>
+            <p className="text-sm text-primary font-semibold">github.com/itsaahsan</p>
           </div>
         </div>
       </div>

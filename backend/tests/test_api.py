@@ -1,4 +1,4 @@
-"""Comprehensive API tests for all Shop Hub endpoints."""
+"""Comprehensive API tests for all Shophub endpoints."""
 
 import pytest
 from tests.conftest import auth_cookies

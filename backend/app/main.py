@@ -1,4 +1,4 @@
-"""Shop Hub API — FastAPI application entry point."""
+"""Shophub API — FastAPI application entry point."""
 
 from contextlib import asynccontextmanager
 

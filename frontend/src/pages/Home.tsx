@@ -89,7 +89,7 @@ const Home: React.FC = () => {
           </h1>
           
           <p className="text-lg md:text-xl text-muted max-w-2xl mx-auto mb-10 leading-relaxed animate-in fade-in slide-in-from-bottom-6 duration-1000">
-            shophub uses cutting-edge AI to recommend products that perfectly match your lifestyle. High quality tech, seamlessly delivered.
+            Shophub uses cutting-edge AI to recommend products that perfectly match your lifestyle. High quality tech, seamlessly delivered.
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-8 duration-1000">

@@ -24,7 +24,7 @@ const Navbar: React.FC = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center flex-shrink-0 group">
-            <span className="text-2xl font-extrabold tracking-tighter text-primary group-hover:text-accent transition-colors duration-300">shophub</span>
+            <span className="text-2xl font-extrabold tracking-tighter text-primary group-hover:text-accent transition-colors duration-300">Shophub</span>
           </Link>
 
           {/* Search Bar - Center */}

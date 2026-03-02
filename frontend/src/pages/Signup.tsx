@@ -21,7 +21,7 @@ const Signup: React.FC = () => {
     try {
       const { data } = await api.post('/auth/signup', { name, email, password });
       setUser(data);
-      toast.success('Account created! Welcome to shophub.');
+      toast.success('Account created! Welcome to Shophub.');
       navigate(redirectParam || '/', { replace: true });
     } catch (err: any) {
       const detail = err.response?.data?.detail;
@@ -42,7 +42,7 @@ const Signup: React.FC = () => {
       <div className="w-full max-w-[450px]">
         {/* Logo/Icon */}
         <div className="flex flex-col items-center mb-10">
-          <h1 className="text-4xl font-extrabold tracking-tighter text-primary">shophub</h1>
+          <h1 className="text-4xl font-extrabold tracking-tighter text-primary">Shophub</h1>
           <p className="text-muted text-sm mt-2 text-center max-w-[300px]">Create an account to unlock AI-powered recommendations.</p>
         </div>
 

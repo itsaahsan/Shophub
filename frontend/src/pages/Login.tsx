@@ -41,7 +41,7 @@ const Login: React.FC = () => {
       <div className="w-full max-w-[400px]">
         {/* Logo/Icon */}
         <div className="flex flex-col items-center mb-10">
-          <h1 className="text-4xl font-extrabold tracking-tighter text-primary">shophub</h1>
+          <h1 className="text-4xl font-extrabold tracking-tighter text-primary">Shophub</h1>
           <p className="text-muted text-sm mt-2 font-medium">Welcome back to your account</p>
         </div>
 

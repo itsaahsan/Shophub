@@ -30,7 +30,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <aside className="w-64 bg-[#111111] text-white flex flex-col h-full border-r border-white/5">
         <div className="p-6">
           <Link to="/" className="flex items-center space-x-2">
-            <span className="text-xl font-extrabold tracking-tighter text-white">shophub</span>
+            <span className="text-xl font-extrabold tracking-tighter text-white">Shophub</span>
             <span className="text-[10px] font-bold bg-accent/20 text-accent px-1.5 py-0.5 rounded uppercase">Admin</span>
           </Link>
         </div>
