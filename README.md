@@ -1,4 +1,4 @@
-# Shop Hub — Full-Stack AI E-Commerce Platform
+# Shophub — Full-Stack AI E-Commerce Platform
 
 ![Shop Hub Screenshot](frontend/public/Screenshot%202026-03-02%20005850.png)
 
