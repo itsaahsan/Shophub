@@ -2,16 +2,131 @@
 
 ![Shop Hub Screenshot](frontend/public/Screenshot%202026-03-02%20005850.png)
 
-Shop Hub is a production-grade AI-powered e-commerce platform built with modern technologies. It features AI-driven product recommendations using OpenAI GPT-3.5, seamless Stripe payments, and a high-performance Redis-cached catalog. The platform includes JWT-based authentication with httpOnly cookies, Google OAuth, and secure password hashing. There's also a comprehensive admin dashboard with sales analytics and full inventory management.
+Shophub is a production-grade e-commerce platform built with modern technologies. It features seamless Stripe payments, a high-performance Redis-cached catalog, and JWT-based authentication with httpOnly cookies and secure password hashing. There's also a comprehensive admin dashboard with sales analytics and full inventory management.
 
-The frontend is built with React 19, TypeScript, Vite, Tailwind CSS, Zustand, and TanStack Query, while the backend uses FastAPI with Motor for async MongoDB and Redis caching through Upstash. The design is fully responsive and modern.
+---
 
-To get started, navigate to the backend folder and create a virtual environment with `python -m venv venv`, then activate it with `.\venv\Scripts\Activate.ps1` on Windows or `source venv/bin/activate` on Mac/Linux. Install dependencies with `pip install -r requirements.txt`, then copy the `.env.example` file to `.env` and fill in your credentials for MongoDB, Redis, Stripe, OpenAI, and other services. Run the backend with `uvicorn app.main:app --reload` and it will be available at `http://127.0.0.1:8000` with interactive docs at `/docs`.
+## Tech Stack
 
-For the frontend, go to the frontend folder and run `npm install`, then copy `.env.example` to `.env` and set the `VITE_API_URL` to your backend URL. Start the development server with `npm run dev` and the UI will be available at `http://localhost:5173`.
+| Layer | Technology |
+|---|---|
+| Frontend | React 19 + TypeScript + Vite |
+| Styling | Tailwind CSS |
+| State Management | Zustand + TanStack Query |
+| Backend | FastAPI (Python) |
+| Database | MongoDB (async via Motor) |
+| Caching | Redis via Upstash |
+| Payments | Stripe |
+| Auth | JWT with httpOnly cookies |
 
-For deployment, you can use MongoDB Atlas for the database (free tier available), Upstash for Redis caching, Render for the backend API, and Vercel for the frontend. Simply connect your GitHub repository to each platform, configure the environment variables, and set the appropriate build commands.
+---
 
-The API documentation is available at `http://localhost:8000/docs` for interactive testing or `http://localhost:8000/redoc` for an alternative format. For backend tests, run `pytest` in the backend folder, or use `python health_check.py` for a quick sanity check.
+## Key Features
 
-This project is built with care for portfolio demonstration purposes.
+- **Stripe Payments** — seamless checkout integration
+- **Redis Caching** — high-performance product catalog via Upstash
+- **JWT Authentication** — secure httpOnly cookies with password hashing
+- **Admin Dashboard** — sales analytics and inventory management
+- **Async Backend** — FastAPI with Motor for non-blocking MongoDB operations
+- **Fully Responsive** — modern design on all screen sizes
+
+---
+
+## Getting Started
+
+### Backend
+
+```bash
+cd backend
+
+# Create and activate virtual environment
+python -m venv venv
+.\venv\Scripts\Activate.ps1        # Windows
+source venv/bin/activate            # Mac/Linux
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Setup environment
+copy .env.example .env             # Fill in your credentials
+
+# Run server
+uvicorn app.main:app --reload
+```
+
+API available at: `http://127.0.0.1:8000`
+Interactive docs: `http://127.0.0.1:8000/docs`
+
+---
+
+### Frontend
+
+```bash
+cd frontend
+
+npm install
+
+copy .env.example .env             # Set VITE_API_URL
+
+npm run dev
+```
+
+UI available at: `http://localhost:5173`
+
+---
+
+## Environment Variables
+
+### Backend `.env`
+
+```env
+MONGODB_URL=your-mongodb-atlas-url
+REDIS_URL=your-upstash-redis-url
+STRIPE_SECRET_KEY=sk_test_xxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx
+JWT_SECRET_KEY=your-secret-key
+JWT_ALGORITHM=HS256
+```
+
+### Frontend `.env`
+
+```env
+VITE_API_URL=http://127.0.0.1:8000
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
+```
+
+---
+
+## API Documentation
+
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
+---
+
+## Testing
+
+```bash
+# Full test suite
+cd backend && pytest
+
+# Quick sanity check
+python health_check.py
+```
+
+---
+
+## Deployment
+
+| Service | Platform | Notes |
+|---|---|---|
+| Database | MongoDB Atlas | Free tier available |
+| Redis Cache | Upstash | Free tier available |
+| Backend API | Render | Connect GitHub repo |
+| Frontend | Vercel | Auto-deploy on push |
+
+Connect your GitHub repository to each platform, configure the environment variables, and set the appropriate build commands.
+
+---
+
+*Built for portfolio demonstration purposes.*
