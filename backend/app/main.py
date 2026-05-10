@@ -30,11 +30,12 @@ from app.api.routes import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
-    await connect_db()
+    db = await connect_db()
     await connect_redis()
     configure_cloudinary()
     init_openai()
-    await seed_products_if_empty()
+    if db is not None:
+        await seed_products_if_empty()
     yield
     await close_redis()
     await close_db()
