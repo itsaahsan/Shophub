@@ -16,6 +16,7 @@ from app.schemas.product import (
 )
 from app.services.cloudinary_service import upload_image
 from app.services.openai_service import get_similar_products
+from app.services.seed_service import SEED_PRODUCTS
 from app.utils.helpers import serialize_doc, to_object_id, utc_now
 
 router = APIRouter(prefix="/products", tags=["products"])
@@ -39,6 +40,25 @@ def _product_response(doc: dict) -> ProductResponse:
         created_at=doc.get("created_at", ""),
     )
 
+
+def _demo_products() -> list[dict]:
+    """Return deterministic demo products when MongoDB is not configured."""
+    return [
+        {
+            **product,
+            "id": f"demo-{index}",
+            "average_rating": 0,
+            "review_count": 0,
+            "created_at": "2026-01-01T00:00:00+00:00",
+        }
+        for index, product in enumerate(SEED_PRODUCTS, start=1)
+    ]
+
+
+def _database_unavailable(exc: RuntimeError) -> bool:
+    return "Database not initialized" in str(exc)
+
+
 @router.get("", response_model=ProductListResponse)
 async def list_products(
     page: int = Query(1, ge=1),
@@ -54,7 +74,45 @@ async def list_products(
     if cached:
         return cached
 
-    db = get_db()
+    try:
+        db = get_db()
+    except RuntimeError as exc:
+        if not _database_unavailable(exc):
+            raise
+
+        products = _demo_products()
+        if search:
+            term = search.lower()
+            products = [
+                product
+                for product in products
+                if term in product["name"].lower()
+                or term in product["description"].lower()
+                or term in product["category"].lower()
+            ]
+        if category:
+            products = [product for product in products if product["category"] == category]
+        if min_price:
+            products = [product for product in products if product["price"] >= min_price]
+        if max_price:
+            products = [product for product in products if product["price"] <= max_price]
+        if sort == "price_asc":
+            products.sort(key=lambda product: product["price"])
+        elif sort == "price_desc":
+            products.sort(key=lambda product: product["price"], reverse=True)
+
+        total = len(products)
+        pages = math.ceil(total / PER_PAGE) or 1
+        start = (page - 1) * PER_PAGE
+        page_products = products[start : start + PER_PAGE]
+
+        return ProductListResponse(
+            products=[_product_response(product) for product in page_products],
+            total=total,
+            page=page,
+            pages=pages,
+        )
+
     query: dict = {}
 
     if search:
@@ -100,7 +158,15 @@ async def list_categories():
     if cached:
         return cached
 
-    db = get_db()
+    try:
+        db = get_db()
+    except RuntimeError as exc:
+        if not _database_unavailable(exc):
+            raise
+        categories = sorted({product["category"] for product in _demo_products()})
+        await cache_set("product_categories", categories, ttl=600)
+        return categories
+
     categories = await db.products.distinct("category")
     await cache_set("product_categories", categories, ttl=600)
     return categories
@@ -113,7 +179,19 @@ async def get_product(product_id: str):
     if cached:
         return cached
 
-    db = get_db()
+    try:
+        db = get_db()
+    except RuntimeError as exc:
+        if not _database_unavailable(exc):
+            raise
+        product = next(
+            (product for product in _demo_products() if product["id"] == product_id),
+            None,
+        )
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+        return _product_response(product)
+
     doc = await db.products.find_one({"_id": to_object_id(product_id)})
     if not doc:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -126,7 +204,23 @@ async def get_product(product_id: str):
 @router.get("/{product_id}/similar")
 async def similar_products(product_id: str):
     """Get AI-powered similar product recommendations."""
-    db = get_db()
+    try:
+        db = get_db()
+    except RuntimeError as exc:
+        if not _database_unavailable(exc):
+            raise
+        product = next(
+            (product for product in _demo_products() if product["id"] == product_id),
+            None,
+        )
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+        return [
+            _product_response(candidate).model_dump()
+            for candidate in _demo_products()
+            if candidate["category"] == product["category"] and candidate["id"] != product_id
+        ][:4]
+
     product = await db.products.find_one({"_id": to_object_id(product_id)})
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
