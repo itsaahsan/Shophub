@@ -118,14 +118,45 @@ python health_check.py
 
 ## Deployment
 
+Recommended free-tier setup:
+
 | Service | Platform | Notes |
 |---|---|---|
-| Database | MongoDB Atlas | Free tier available |
-| Redis Cache | Upstash | Free tier available |
-| Backend API | Render | Connect GitHub repo |
-| Frontend | Vercel | Auto-deploy on push |
+| Backend API | Render | Uses `render.yaml` |
+| Frontend | Vercel | Use `frontend` as the project root |
+| Database | MongoDB Atlas | Set `MONGODB_URI` in Render |
+| Redis Cache | Upstash | Optional, set `REDIS_URL` in Render |
 
-Connect your GitHub repository to each platform, configure the environment variables, and set the appropriate build commands.
+### Render Backend
+
+1. Connect this GitHub repository in Render.
+2. Choose **Blueprint** deployment so Render reads `render.yaml`.
+3. Set the required environment variables:
+
+```env
+MONGODB_URI=your-mongodb-atlas-url
+FRONTEND_URL=https://your-vercel-app.vercel.app
+```
+
+Add Stripe, Google, Cloudinary, OpenAI, Redis, and SMTP variables only if you use those features.
+
+### Vercel Frontend
+
+Create a Vercel project with:
+
+```text
+Root Directory: frontend
+Build Command: npm run build
+Output Directory: dist
+```
+
+Set:
+
+```env
+VITE_API_URL=https://your-render-service.onrender.com/api/v1
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
+VITE_GOOGLE_CLIENT_ID=your-google-client-id
+```
 
 ---
 
