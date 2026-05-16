@@ -1,7 +1,16 @@
 """Comprehensive API tests for all Shophub endpoints."""
 
+import uuid
 import pytest
+from sqlalchemy import select, delete
 from tests.conftest import auth_cookies
+from app.core.database import get_session
+from app.models.user import User
+from app.models.product import Product
+from app.models.cart import Cart
+from app.models.wishlist import Wishlist
+from app.models.review import Review
+from app.models.order import Order
 
 
 # ──────────── Health ────────────
@@ -29,9 +38,9 @@ async def test_signup_success(client):
     assert data["email"] == "newuser_signup_test@test.com"
     assert "access_token" in res.cookies or "id" in data
     # Cleanup
-    from app.core.database import get_db
-    db = get_db()
-    await db.users.delete_one({"email": "newuser_signup_test@test.com"})
+    async with get_session() as session:
+        await session.execute(delete(User).where(User.email == "newuser_signup_test@test.com"))
+        await session.commit()
 
 
 @pytest.mark.asyncio
@@ -142,8 +151,7 @@ async def test_get_product(client, test_product):
 
 @pytest.mark.asyncio
 async def test_get_product_not_found(client):
-    from bson import ObjectId
-    fake_id = str(ObjectId())
+    fake_id = str(uuid.uuid4())
     res = await client.get(f"/api/v1/products/{fake_id}")
     assert res.status_code == 404
 
@@ -168,10 +176,9 @@ async def test_create_product_as_admin(client, admin_user):
     assert res.status_code == 201
     product_id = res.json()["id"]
     # Cleanup
-    from app.core.database import get_db
-    db = get_db()
-    from bson import ObjectId
-    await db.products.delete_one({"_id": ObjectId(product_id)})
+    async with get_session() as session:
+        await session.execute(delete(Product).where(Product.id == uuid.UUID(product_id)))
+        await session.commit()
 
 
 @pytest.mark.asyncio
@@ -211,20 +218,22 @@ async def test_update_product_as_admin(client, admin_user, test_product):
 
 @pytest.mark.asyncio
 async def test_delete_product_as_admin(client, admin_user):
-    from app.core.database import get_db
-    db = get_db()
-    result = await db.products.insert_one({
-        "name": "To Delete",
-        "description": "This product will be deleted in tests.",
-        "price": 1,
-        "category": "TestCategory",
-        "stock": 1,
-        "images": [],
-        "average_rating": 0,
-        "review_count": 0,
-        "created_at": "2024-01-01T00:00:00+00:00",
-    })
-    pid = str(result.inserted_id)
+    async with get_session() as session:
+        product = Product(
+            name="To Delete",
+            description="This product will be deleted in tests.",
+            price=1.0,
+            category="TestCategory",
+            stock=1,
+            images=[],
+            average_rating=0.0,
+            review_count=0,
+        )
+        session.add(product)
+        await session.commit()
+        await session.refresh(product)
+        pid = str(product.id)
+    
     res = await client.delete(f"/api/v1/products/{pid}", cookies=auth_cookies(admin_user["token"]))
     assert res.status_code == 204
 
@@ -249,9 +258,9 @@ async def test_add_to_cart(client, test_user, test_product):
     res = await client.get("/api/v1/cart", cookies=auth_cookies(test_user["token"]))
     assert len(res.json()["items"]) > 0
     # Cleanup
-    from app.core.database import get_db
-    db = get_db()
-    await db.cart.delete_one({"user_id": test_user["id"]})
+    async with get_session() as session:
+        await session.execute(delete(Cart).where(Cart.user_id == uuid.UUID(test_user["id"])))
+        await session.commit()
 
 
 @pytest.mark.asyncio
@@ -265,9 +274,9 @@ async def test_remove_from_cart(client, test_user, test_product):
     res = await client.delete(f"/api/v1/cart/items/{test_product['id']}", cookies=auth_cookies(test_user["token"]))
     assert res.status_code == 200
     # Cleanup
-    from app.core.database import get_db
-    db = get_db()
-    await db.cart.delete_one({"user_id": test_user["id"]})
+    async with get_session() as session:
+        await session.execute(delete(Cart).where(Cart.user_id == uuid.UUID(test_user["id"])))
+        await session.commit()
 
 
 @pytest.mark.asyncio
@@ -278,9 +287,9 @@ async def test_clear_cart(client, test_user, test_product):
     }, cookies=auth_cookies(test_user["token"]))
     res = await client.delete("/api/v1/cart", cookies=auth_cookies(test_user["token"]))
     assert res.status_code == 200
-    from app.core.database import get_db
-    db = get_db()
-    await db.cart.delete_one({"user_id": test_user["id"]})
+    async with get_session() as session:
+        await session.execute(delete(Cart).where(Cart.user_id == uuid.UUID(test_user["id"])))
+        await session.commit()
 
 
 @pytest.mark.asyncio
@@ -304,9 +313,9 @@ async def test_add_to_wishlist(client, test_user, test_product):
         "product_id": test_product["id"],
     }, cookies=auth_cookies(test_user["token"]))
     assert res.status_code == 200
-    from app.core.database import get_db
-    db = get_db()
-    await db.wishlist.delete_one({"user_id": test_user["id"]})
+    async with get_session() as session:
+        await session.execute(delete(Wishlist).where(Wishlist.user_id == uuid.UUID(test_user["id"])))
+        await session.commit()
 
 
 @pytest.mark.asyncio
@@ -316,9 +325,9 @@ async def test_remove_from_wishlist(client, test_user, test_product):
     }, cookies=auth_cookies(test_user["token"]))
     res = await client.delete(f"/api/v1/wishlist/items/{test_product['id']}", cookies=auth_cookies(test_user["token"]))
     assert res.status_code == 200
-    from app.core.database import get_db
-    db = get_db()
-    await db.wishlist.delete_one({"user_id": test_user["id"]})
+    async with get_session() as session:
+        await session.execute(delete(Wishlist).where(Wishlist.user_id == uuid.UUID(test_user["id"])))
+        await session.commit()
 
 
 # ──────────── Reviews ────────────
@@ -340,10 +349,14 @@ async def test_create_review(client, test_user, test_product):
     assert res.status_code == 201
     assert res.json()["rating"] == 5
     # Cleanup
-    from app.core.database import get_db
-    from bson import ObjectId
-    db = get_db()
-    await db.reviews.delete_one({"product_id": test_product["id"], "user_id": test_user["id"]})
+    async with get_session() as session:
+        await session.execute(
+            delete(Review).where(
+                Review.product_id == uuid.UUID(test_product["id"]),
+                Review.user_id == uuid.UUID(test_user["id"])
+            )
+        )
+        await session.commit()
 
 
 @pytest.mark.asyncio
@@ -361,9 +374,14 @@ async def test_create_review_duplicate(client, test_user, test_product):
         "comment": "Second review should fail as duplicate.",
     }, cookies=auth_cookies(test_user["token"]))
     assert res.status_code == 400
-    from app.core.database import get_db
-    db = get_db()
-    await db.reviews.delete_one({"product_id": test_product["id"], "user_id": test_user["id"]})
+    async with get_session() as session:
+        await session.execute(
+            delete(Review).where(
+                Review.product_id == uuid.UUID(test_product["id"]),
+                Review.user_id == uuid.UUID(test_user["id"])
+            )
+        )
+        await session.commit()
 
 
 @pytest.mark.asyncio
@@ -387,16 +405,14 @@ async def test_list_orders_empty(client, test_user):
 
 @pytest.mark.asyncio
 async def test_get_order_not_found(client, test_user):
-    from bson import ObjectId
-    fake_id = str(ObjectId())
+    fake_id = str(uuid.uuid4())
     res = await client.get(f"/api/v1/orders/{fake_id}", cookies=auth_cookies(test_user["token"]))
     assert res.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_cancel_nonexistent_order(client, test_user):
-    from bson import ObjectId
-    fake_id = str(ObjectId())
+    fake_id = str(uuid.uuid4())
     res = await client.post(f"/api/v1/orders/{fake_id}/cancel", cookies=auth_cookies(test_user["token"]))
     assert res.status_code == 404
 

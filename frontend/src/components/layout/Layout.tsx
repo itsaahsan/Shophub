@@ -1,6 +1,7 @@
 import React from 'react';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import AIAssistant from '../ai/AIAssistant';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
@@ -9,6 +10,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <main className="flex-grow container mx-auto px-4 py-8">
         {children}
       </main>
+      <AIAssistant />
       <Footer />
     </div>
   );

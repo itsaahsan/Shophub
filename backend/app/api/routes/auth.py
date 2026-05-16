@@ -1,9 +1,12 @@
 """Authentication routes: signup, login, logout, refresh, Google OAuth."""
 
-from fastapi import APIRouter, HTTPException, Response, status
+import uuid
+from fastapi import APIRouter, HTTPException, Response, status, Depends, Request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import get_session
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -12,6 +15,7 @@ from app.core.security import (
     verify_password,
 )
 from app.middleware.auth import get_current_user
+from app.models.user import User, UserRole
 from app.schemas.user import (
     GoogleLoginRequest,
     UserLogin,
@@ -19,8 +23,7 @@ from app.schemas.user import (
     UserSignup,
     UserUpdate,
 )
-from app.utils.helpers import utc_now, to_object_id
-from fastapi import Depends, Request
+from app.utils.helpers import utc_now
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -53,25 +56,27 @@ def _set_tokens(response: Response, user_id: str) -> None:
 async def signup(body: UserSignup, response: Response):
     """Register a new user account."""
     try:
-        db = get_db()
+        async with get_session() as session:
+            # Check if email exists
+            result = await session.execute(select(User).where(User.email == body.email))
+            if result.scalar_one_or_none():
+                raise HTTPException(status_code=409, detail="Email already registered")
 
-        if await db.users.find_one({"email": body.email}):
-            raise HTTPException(status_code=409, detail="Email already registered")
+            user = User(
+                name=body.name,
+                email=body.email,
+                password=hash_password(body.password),
+                role=UserRole.USER.value,
+            )
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
 
-        user_doc = {
-            "name": body.name,
-            "email": body.email,
-            "password": hash_password(body.password),
-            "role": "user",
-            "avatar": None,
-            "created_at": utc_now(),
-        }
-        result = await db.users.insert_one(user_doc)
-        user_id = str(result.inserted_id)
+            user_id = str(user.id)
+            _set_tokens(response, user_id)
 
-        _set_tokens(response, user_id)
+            return UserResponse(id=user_id, name=user.name, email=user.email)
 
-        return UserResponse(id=user_id, name=body.name, email=body.email)
     except HTTPException:
         raise
     except ValueError as e:
@@ -91,19 +96,23 @@ async def signup(body: UserSignup, response: Response):
 @router.post("/login", response_model=UserResponse)
 async def login(body: UserLogin, response: Response):
     """Authenticate with email and password."""
-    db = get_db()
-    user = await db.users.find_one({"email": body.email})
+    async with get_session() as session:
+        result = await session.execute(select(User).where(User.email == body.email))
+        user = result.scalar_one_or_none()
 
-    if not user or not verify_password(body.password, user.get("password", "")):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        if not user or not verify_password(body.password, user.password or ""):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    user_id = str(user["_id"])
-    _set_tokens(response, user_id)
+        user_id = str(user.id)
+        _set_tokens(response, user_id)
 
-    return UserResponse(
-        id=user_id, name=user["name"], email=user["email"], role=user.get("role", "user"),
-        avatar=user.get("avatar"),
-    )
+        return UserResponse(
+            id=user_id, 
+            name=user.name, 
+            email=user.email, 
+            role=user.role,
+            avatar=user.avatar,
+        )
 
 
 @router.post("/logout")
@@ -141,26 +150,27 @@ async def get_me(user: dict = Depends(get_current_user)):
 @router.put("/me", response_model=UserResponse)
 async def update_me(body: UserUpdate, user: dict = Depends(get_current_user)):
     """Update the current user's profile."""
-    db = get_db()
-    update_data = {}
-    if body.name:
-        update_data["name"] = body.name
-    
-    if update_data:
-        await db.users.update_one(
-            {"_id": to_object_id(user["id"])},
-            {"$set": update_data},
-        )
+    async with get_session() as session:
+        user_uuid = uuid.UUID(user["id"])
+        result = await session.execute(select(User).where(User.id == user_uuid))
+        db_user = result.scalar_one_or_none()
 
-    # Fetch updated user
-    updated_user = await db.users.find_one({"_id": to_object_id(user["id"])})
-    return UserResponse(
-        id=str(updated_user["_id"]), 
-        name=updated_user["name"], 
-        email=updated_user["email"],
-        role=updated_user.get("role", "user"), 
-        avatar=updated_user.get("avatar"),
-    )
+        if not db_user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if body.name:
+            db_user.name = body.name
+
+        await session.commit()
+        await session.refresh(db_user)
+
+        return UserResponse(
+            id=str(db_user.id), 
+            name=db_user.name, 
+            email=db_user.email,
+            role=db_user.role, 
+            avatar=db_user.avatar,
+        )
 
 
 @router.post("/google", response_model=UserResponse)
@@ -179,30 +189,31 @@ async def google_login(body: GoogleLoginRequest, response: Response):
         raise HTTPException(status_code=401, detail="Invalid Google token")
 
     email = idinfo["email"]
-    db = get_db()
-    user = await db.users.find_one({"email": email})
+    async with get_session() as session:
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
 
-    if not user:
-        # Auto-register
-        user_doc = {
-            "name": idinfo.get("name", email.split("@")[0]),
-            "email": email,
-            "password": "",  # No password for OAuth users
-            "role": "user",
-            "avatar": idinfo.get("picture"),
-            "google_id": idinfo["sub"],
-            "created_at": utc_now(),
-        }
-        result = await db.users.insert_one(user_doc)
-        user_id = str(result.inserted_id)
-        user = {**user_doc, "id": user_id}
-    else:
-        user_id = str(user["_id"])
-        user["id"] = user_id
+        if not user:
+            # Auto-register
+            user = User(
+                name=idinfo.get("name", email.split("@")[0]),
+                email=email,
+                password=None,  # No password for OAuth users
+                role=UserRole.USER.value,
+                avatar=idinfo.get("picture"),
+                google_id=idinfo["sub"],
+            )
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
 
-    _set_tokens(response, user_id)
+        user_id = str(user.id)
+        _set_tokens(response, user_id)
 
-    return UserResponse(
-        id=user["id"], name=user["name"], email=user["email"],
-        role=user.get("role", "user"), avatar=user.get("avatar"),
-    )
+        return UserResponse(
+            id=user_id, 
+            name=user.name, 
+            email=user.email,
+            role=user.role, 
+            avatar=user.avatar,
+        )

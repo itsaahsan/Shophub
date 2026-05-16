@@ -1,23 +1,39 @@
+"""SQLAlchemy base model for PostgreSQL."""
+
+import uuid
 from datetime import datetime, timezone
-from typing import Annotated, Any
 
-from bson import ObjectId
-from pydantic import BaseModel, ConfigDict, Field
-from pydantic.functional_validators import BeforeValidator
+from sqlalchemy import DateTime
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column
 
-# Custom type for ObjectId handling in Pydantic v2
-PyObjectId = Annotated[str, BeforeValidator(str)]
+from app.core.database import Base
 
 
-class MongoBaseModel(BaseModel):
-    """Base model for MongoDB documents."""
+def generate_uuid() -> uuid.UUID:
+    return uuid.uuid4()
 
-    id: PyObjectId | None = Field(default=None, alias="_id")
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-        json_encoders={ObjectId: str},
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class BaseModel(Base):
+    """Base model for all SQLAlchemy tables."""
+
+    __abstract__ = True
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=generate_uuid,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
     )

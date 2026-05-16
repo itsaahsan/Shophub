@@ -10,9 +10,8 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     FRONTEND_URL: str = "http://localhost:5173"
 
-    # MongoDB
-    MONGODB_URI: str = "mongodb://localhost:27017"
-    MONGODB_DB_NAME: str = "shophub"
+    # PostgreSQL
+    POSTGRESQL_URI: str = "postgresql+asyncpg://user:password@localhost:5432/shophub"
 
     # JWT
     JWT_SECRET: str = "change-me-in-production"

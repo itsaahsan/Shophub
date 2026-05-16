@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, Heart, LogOut, LayoutDashboard, Menu, X } from 'lucide-react';
+import { Search, ShoppingCart, User, Heart, LogOut, LayoutDashboard, Menu, X, Crown } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useCartStore } from '../../stores/cartStore';
 
@@ -26,6 +26,14 @@ const Navbar: React.FC = () => {
           <Link to="/" className="flex items-center flex-shrink-0 group">
             <span className="text-2xl font-extrabold tracking-tighter text-primary group-hover:text-accent transition-colors duration-300">Shophub</span>
           </Link>
+
+          {/* Links */}
+          <div className="hidden lg:flex items-center ml-8 space-x-6">
+            <Link to="/plans" className="text-xs font-extrabold uppercase tracking-widest text-muted hover:text-accent transition-colors flex items-center">
+              <Crown className="w-3.5 h-3.5 mr-1.5" />
+              Pro Plans
+            </Link>
+          </div>
 
           {/* Search Bar - Center */}
           <div className="hidden md:flex flex-1 max-w-xl mx-8">

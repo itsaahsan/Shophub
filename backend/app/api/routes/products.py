@@ -1,13 +1,17 @@
-﻿"""Product catalog routes with Redis caching."""
+"""Product catalog routes with Redis caching."""
 
 import math
+import uuid
 
-from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
+from sqlalchemy import or_, and_, func, select, desc, asc
+from sqlalchemy.orm import selectinload
 
-from app.core.database import get_db
+from app.core.database import get_session
 from app.core.redis import cache_delete_pattern, cache_get, cache_set
-from app.middleware.auth import get_current_admin
+from app.middleware.auth import get_current_admin, get_current_vendor
+from app.models.product import Product
+from app.models.vendor import Vendor
 from app.schemas.product import (
     ProductCreate,
     ProductListResponse,
@@ -15,140 +19,107 @@ from app.schemas.product import (
     ProductUpdate,
 )
 from app.services.cloudinary_service import upload_image
-from app.services.openai_service import get_similar_products
-from app.services.seed_service import SEED_PRODUCTS
-from app.utils.helpers import serialize_doc, to_object_id, utc_now
 
 router = APIRouter(prefix="/products", tags=["products"])
 
-PER_PAGE = 12
+DEFAULT_PER_PAGE = 24
+MAX_PER_PAGE = 100
 
 
-def _product_response(doc: dict) -> ProductResponse:
-    """Map a MongoDB product document to a response schema."""
+def _product_response(product: Product) -> ProductResponse:
+    """Map a SQLAlchemy Product model to a response schema."""
     return ProductResponse(
-        id=doc["id"],
-        name=doc["name"],
-        description=doc["description"],
-        price=doc["price"],
-        category=doc["category"],
-        stock=doc.get("stock", 0),
-        images=doc.get("images", []),
-        original_images=doc.get("original_images", []),
-        average_rating=doc.get("average_rating", 0),
-        review_count=doc.get("review_count", 0),
-        created_at=doc.get("created_at", ""),
+        id=str(product.id),
+        name=product.name,
+        description=product.description,
+        price=product.price,
+        category=product.category,
+        stock=product.stock,
+        images=product.images or [],
+        original_images=product.original_images or [],
+        average_rating=product.average_rating,
+        review_count=product.review_count,
+        created_at=product.created_at.isoformat() if product.created_at else "",
+        vendor_id=str(product.vendor_id) if product.vendor_id else None,
+        vendor_name=product.vendor.shop_name if product.vendor else None,
     )
-
-
-def _demo_products() -> list[dict]:
-    """Return deterministic demo products when MongoDB is not configured."""
-    return [
-        {
-            **product,
-            "id": f"demo-{index}",
-            "average_rating": 0,
-            "review_count": 0,
-            "created_at": "2026-01-01T00:00:00+00:00",
-        }
-        for index, product in enumerate(SEED_PRODUCTS, start=1)
-    ]
-
-
-def _database_unavailable(exc: RuntimeError) -> bool:
-    return "Database not initialized" in str(exc)
 
 
 @router.get("", response_model=ProductListResponse)
 async def list_products(
     page: int = Query(1, ge=1),
+    per_page: int = Query(DEFAULT_PER_PAGE, ge=1, le=MAX_PER_PAGE),
     search: str = Query("", max_length=200),
     category: str = Query(""),
     min_price: float = Query(0, ge=0),
     max_price: float = Query(0, ge=0),
     sort: str = Query("newest", pattern="^(newest|price_asc|price_desc)$"),
+    vendor_id: str = Query(""),
 ):
     """List products with search, filter, sort, and pagination. Redis cached."""
-    cache_key = f"products:{page}:{search}:{category}:{min_price}:{max_price}:{sort}"
+    cache_key = f"products:{page}:{per_page}:{search}:{category}:{min_price}:{max_price}:{sort}:{vendor_id}"
     cached = await cache_get(cache_key)
     if cached:
         return cached
 
-    try:
-        db = get_db()
-    except RuntimeError as exc:
-        if not _database_unavailable(exc):
-            raise
-
-        products = _demo_products()
+    async with get_session() as session:
+        query = select(Product).options(selectinload(Product.vendor))
+        
+        # Apply filters
+        filters = []
         if search:
-            term = search.lower()
-            products = [
-                product
-                for product in products
-                if term in product["name"].lower()
-                or term in product["description"].lower()
-                or term in product["category"].lower()
-            ]
+            search_term = f"%{search}%"
+            filters.append(
+                or_(
+                    Product.name.ilike(search_term),
+                    Product.description.ilike(search_term),
+                    Product.category.ilike(search_term),
+                )
+            )
         if category:
-            products = [product for product in products if product["category"] == category]
-        if min_price:
-            products = [product for product in products if product["price"] >= min_price]
-        if max_price:
-            products = [product for product in products if product["price"] <= max_price]
-        if sort == "price_asc":
-            products.sort(key=lambda product: product["price"])
-        elif sort == "price_desc":
-            products.sort(key=lambda product: product["price"], reverse=True)
-
-        total = len(products)
-        pages = math.ceil(total / PER_PAGE) or 1
-        start = (page - 1) * PER_PAGE
-        page_products = products[start : start + PER_PAGE]
-
-        return ProductListResponse(
-            products=[_product_response(product) for product in page_products],
+            filters.append(Product.category == category)
+        if min_price > 0:
+            filters.append(Product.price >= min_price)
+        if max_price > 0:
+            filters.append(Product.price <= max_price)
+        if vendor_id:
+            try:
+                vendor_uuid = uuid.UUID(vendor_id)
+                filters.append(Product.vendor_id == vendor_uuid)
+            except ValueError:
+                pass
+        
+        if filters:
+            query = query.where(and_(*filters))
+        
+        # Sort
+        sort_map = {
+            "newest": desc(Product.created_at),
+            "price_asc": asc(Product.price),
+            "price_desc": desc(Product.price),
+        }
+        query = query.order_by(sort_map.get(sort, desc(Product.created_at)))
+        
+        # Count and paginate
+        count_result = await session.execute(select(func.count()).select_from(query.subquery()))
+        total = count_result.scalar() or 0
+        pages = math.ceil(total / per_page) or 1
+        
+        offset = (page - 1) * per_page
+        query = query.offset(offset).limit(per_page)
+        
+        result = await session.execute(query)
+        products = result.scalars().all()
+        
+        response = ProductListResponse(
+            products=[_product_response(p) for p in products],
             total=total,
             page=page,
             pages=pages,
         )
-
-    query: dict = {}
-
-    if search:
-        query["$text"] = {"$search": search}
-    if category:
-        query["category"] = category
-    if min_price or max_price:
-        price_filter = {}
-        if min_price:
-            price_filter["$gte"] = min_price
-        if max_price:
-            price_filter["$lte"] = max_price
-        query["price"] = price_filter
-
-    sort_map = {
-        "newest": [("created_at", -1)],
-        "price_asc": [("price", 1)],
-        "price_desc": [("price", -1)],
-    }
-
-    total = await db.products.count_documents(query)
-    pages = math.ceil(total / PER_PAGE) or 1
-    skip = (page - 1) * PER_PAGE
-
-    cursor = db.products.find(query).sort(sort_map[sort]).skip(skip).limit(PER_PAGE)
-    docs = [serialize_doc(d) for d in await cursor.to_list(PER_PAGE)]
-
-    result = ProductListResponse(
-        products=[_product_response(d) for d in docs],
-        total=total,
-        page=page,
-        pages=pages,
-    ).model_dump()
-
-    await cache_set(cache_key, result)
-    return result
+        result_dict = response.model_dump()
+        await cache_set(cache_key, result_dict)
+        return response
 
 
 @router.get("/categories", response_model=list[str])
@@ -158,18 +129,11 @@ async def list_categories():
     if cached:
         return cached
 
-    try:
-        db = get_db()
-    except RuntimeError as exc:
-        if not _database_unavailable(exc):
-            raise
-        categories = sorted({product["category"] for product in _demo_products()})
+    async with get_session() as session:
+        result = await session.execute(select(Product.category).distinct())
+        categories = [row[0] for row in result.all() if row[0]]
         await cache_set("product_categories", categories, ttl=600)
         return categories
-
-    categories = await db.products.distinct("category")
-    await cache_set("product_categories", categories, ttl=600)
-    return categories
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
@@ -180,100 +144,149 @@ async def get_product(product_id: str):
         return cached
 
     try:
-        db = get_db()
-    except RuntimeError as exc:
-        if not _database_unavailable(exc):
-            raise
-        product = next(
-            (product for product in _demo_products() if product["id"] == product_id),
-            None,
+        product_uuid = uuid.UUID(product_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    async with get_session() as session:
+        result = await session.execute(
+            select(Product)
+            .options(selectinload(Product.vendor))
+            .where(Product.id == product_uuid)
         )
+        product = result.scalar_one_or_none()
+        
         if not product:
             raise HTTPException(status_code=404, detail="Product not found")
-        return _product_response(product)
-
-    doc = await db.products.find_one({"_id": to_object_id(product_id)})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    result = _product_response(serialize_doc(doc)).model_dump()
-    await cache_set(f"product:{product_id}", result)
-    return result
+        
+        response = _product_response(product)
+        result_dict = response.model_dump()
+        await cache_set(f"product:{product_id}", result_dict)
+        return response
 
 
 @router.get("/{product_id}/similar")
 async def similar_products(product_id: str):
     """Get AI-powered similar product recommendations."""
     try:
-        db = get_db()
-    except RuntimeError as exc:
-        if not _database_unavailable(exc):
-            raise
-        product = next(
-            (product for product in _demo_products() if product["id"] == product_id),
-            None,
+        product_uuid = uuid.UUID(product_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Product not found")
+        
+    async with get_session() as session:
+        result = await session.execute(
+            select(Product)
+            .options(selectinload(Product.vendor))
+            .where(Product.id == product_uuid)
         )
+        product = result.scalar_one_or_none()
+        
         if not product:
             raise HTTPException(status_code=404, detail="Product not found")
-        return [
-            _product_response(candidate).model_dump()
-            for candidate in _demo_products()
-            if candidate["category"] == product["category"] and candidate["id"] != product_id
-        ][:4]
-
-    product = await db.products.find_one({"_id": to_object_id(product_id)})
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    similar = await get_similar_products(product)
-    return [_product_response(p).model_dump() for p in similar]
+        
+        # Get similar products by category
+        result = await session.execute(
+            select(Product)
+            .options(selectinload(Product.vendor))
+            .where(Product.category == product.category)
+            .where(Product.id != product.id)
+            .limit(4)
+        )
+        similar = result.scalars().all()
+        return [_product_response(p).model_dump() for p in similar]
 
 
 # --- Admin routes ---
 
 @router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
-async def create_product(body: ProductCreate, _: dict = Depends(get_current_admin)):
+async def create_product(body: ProductCreate, admin: dict = Depends(get_current_admin)):
     """Create a new product (admin only)."""
-    db = get_db()
-    doc = {**body.model_dump(), "average_rating": 0, "review_count": 0, "created_at": utc_now()}
-    result = await db.products.insert_one(doc)
-    doc["id"] = str(result.inserted_id)
-
+    async with get_session() as session:
+        product_data = body.model_dump()
+        vendor_id = None
+        if product_data.get("vendor_id"):
+            try:
+                vendor_id = uuid.UUID(product_data["vendor_id"])
+                # Verify vendor exists
+                vendor_result = await session.execute(select(Vendor).where(Vendor.user_id == vendor_id))
+                if not vendor_result.scalar_one_or_none():
+                    vendor_id = None
+            except ValueError:
+                vendor_id = None
+        
+        product = Product(
+            **product_data,
+            average_rating=0,
+            review_count=0,
+            vendor_id=vendor_id,
+        )
+        session.add(product)
+        await session.commit()
+        await session.refresh(product)
+    
     await cache_delete_pattern("products:*")
     await cache_delete_pattern("product_categories")
-    return _product_response(doc)
+    return _product_response(product)
 
 
 @router.put("/{product_id}", response_model=ProductResponse)
 async def update_product(product_id: str, body: ProductUpdate, _: dict = Depends(get_current_admin)):
     """Update a product (admin only)."""
-    db = get_db()
-    update_data = {k: v for k, v in body.model_dump().items() if v is not None}
-    if not update_data:
-        raise HTTPException(status_code=400, detail="No fields to update")
-
-    result = await db.products.find_one_and_update(
-        {"_id": to_object_id(product_id)},
-        {"$set": update_data},
-        return_document=True,
-    )
-    if not result:
+    try:
+        product_uuid = uuid.UUID(product_id)
+    except ValueError:
         raise HTTPException(status_code=404, detail="Product not found")
-
+        
+    async with get_session() as session:
+        result = await session.execute(select(Product).where(Product.id == product_uuid))
+        product = result.scalar_one_or_none()
+        
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+        
+        update_data = body.model_dump(exclude_unset=True)
+        if "vendor_id" in update_data:
+            try:
+                vendor_id = uuid.UUID(update_data["vendor_id"])
+                # Verify vendor exists
+                vendor_result = await session.execute(select(Vendor).where(Vendor.user_id == vendor_id))
+                if not vendor_result.scalar_one_or_none():
+                    del update_data["vendor_id"]
+                else:
+                    update_data["vendor_id"] = vendor_id
+            except ValueError:
+                del update_data["vendor_id"]
+        
+        for key, value in update_data.items():
+            setattr(product, key, value)
+        
+        await session.commit()
+        await session.refresh(product)
+    
     await cache_delete_pattern("products:*")
     await cache_delete_pattern(f"product:{product_id}")
     await cache_delete_pattern("product_categories")
-    return _product_response(serialize_doc(result))
+    return _product_response(product)
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_product(product_id: str, _: dict = Depends(get_current_admin)):
     """Delete a product (admin only)."""
-    db = get_db()
-    result = await db.products.delete_one({"_id": to_object_id(product_id)})
-    if result.deleted_count == 0:
+    try:
+        product_uuid = uuid.UUID(product_id)
+    except ValueError:
         raise HTTPException(status_code=404, detail="Product not found")
-
+        
+    async with get_session() as session:
+        result = await session.execute(select(Product).where(Product.id == product_uuid))
+        product = result.scalar_one_or_none()
+        
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+        
+        await session.delete(product)
+        await session.commit()
+    
     await cache_delete_pattern("products:*")
     await cache_delete_pattern(f"product:{product_id}")
     await cache_delete_pattern("product_categories")
@@ -289,7 +302,3 @@ async def upload_product_image(
 
     url = await upload_image(file)
     return {"url": url}
-
-
-
-

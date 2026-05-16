@@ -1,4 +1,4 @@
-from . import auth, products, cart, orders, wishlist, reviews, recommendations, admin
+from . import auth, products, cart, orders, wishlist, reviews, recommendations, admin, coupons
 
 __all__ = [
     "auth",
@@ -9,4 +9,5 @@ __all__ = [
     "reviews",
     "recommendations",
     "admin",
+    "coupons",
 ]

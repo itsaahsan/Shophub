@@ -1,7 +1,8 @@
 """One-time seeding of demo products with real image URLs."""
 
-from app.core.database import get_db
-from app.utils.helpers import utc_now
+from sqlalchemy import select, func
+from app.core.database import get_session_maker
+from app.models.product import Product
 
 
 # Curated demo catalog with real product-style images (Unsplash/CDN).
@@ -142,22 +143,31 @@ SEED_PRODUCTS: list[dict] = [
 
 async def seed_products_if_empty() -> None:
     """Insert demo products if the catalog is empty."""
-    db = get_db()
-    count = await db.products.count_documents({})
-    if count > 0:
+    session_maker = await get_session_maker()
+    if session_maker is None:
         return
 
-    now = utc_now()
-    docs = []
-    for product in SEED_PRODUCTS:
-        doc = {
-            **product,
-            "average_rating": 0.0,
-            "review_count": 0,
-            "created_at": now,
-        }
-        docs.append(doc)
+    async with session_maker() as session:
+        # Check if products exist
+        result = await session.execute(select(func.count(Product.id)))
+        count = result.scalar()
+        if count > 0:
+            return
 
-    await db.products.insert_many(docs)
-    print(f"Seeded {len(docs)} demo products into the catalog.")
+        for p_data in SEED_PRODUCTS:
+            product = Product(
+                name=p_data["name"],
+                description=p_data["description"],
+                price=p_data["price"],
+                category=p_data["category"],
+                stock=p_data["stock"],
+                images=p_data["images"],
+                original_images=p_data["original_images"],
+                average_rating=0.0,
+                review_count=0,
+            )
+            session.add(product)
+        
+        await session.commit()
+        print(f"Seeded {len(SEED_PRODUCTS)} demo products into the catalog.")
 

@@ -5,6 +5,7 @@ from app.models.recommendation import Recommendation
 from app.models.review import Review
 from app.models.user import User, UserRole
 from app.models.wishlist import Wishlist, WishlistItem
+from app.models.coupon import Coupon
 
 __all__ = [
     "User",
@@ -20,4 +21,5 @@ __all__ = [
     "WishlistItem",
     "Review",
     "Recommendation",
+    "Coupon",
 ]

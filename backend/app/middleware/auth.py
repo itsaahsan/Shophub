@@ -1,10 +1,15 @@
 """JWT authentication middleware and dependency injectors."""
 
-from fastapi import Depends, HTTPException, Request, status
+import uuid
+from typing import Annotated
 
-from app.core.database import get_db
+from fastapi import Depends, HTTPException, Request, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_session
 from app.core.security import decode_token
-from bson import ObjectId
+from app.models.user import User
 
 
 async def get_current_user(request: Request) -> dict:
@@ -23,16 +28,18 @@ async def get_current_user(request: Request) -> dict:
             detail="Invalid or expired token",
         )
 
-    db = get_db()
-    user = await db.users.find_one({"_id": ObjectId(payload["sub"])})
+    user_id = uuid.UUID(payload["sub"])
+    async with get_session() as session:
+        result = await session.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
 
-    user["id"] = str(user.pop("_id"))
-    return user
+    return {"id": str(user.id), "name": user.name, "email": user.email, "role": user.role, "avatar": user.avatar}
 
 
 async def get_current_admin(user: dict = Depends(get_current_user)) -> dict:
@@ -51,3 +58,13 @@ async def get_optional_user(request: Request) -> dict | None:
         return await get_current_user(request)
     except HTTPException:
         return None
+
+
+async def get_current_vendor(user: dict = Depends(get_current_user)) -> dict:
+    """Ensure the current user has vendor role."""
+    if user.get("role") not in ["vendor", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Vendor access required",
+        )
+    return user

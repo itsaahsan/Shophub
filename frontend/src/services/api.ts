@@ -38,8 +38,20 @@ export const wishlistApi = {
   remove: (productId: string) => api.delete(`/wishlist/items/${productId}`),
 };
 
+export const subscriptionApi = {
+  listPlans: () => api.get('/subscriptions/plans'),
+  createCheckout: (planId: string) => api.post('/subscriptions/checkout', { plan_id: planId }),
+  getMe: () => api.get('/subscriptions'),
+};
+
+export const aiApi = {
+  chat: (message: string, history: any[] = []) => api.post('/ai/chat', { message, history }),
+};
+
 export const adminApi = {
   getStats: () => api.get('/admin/stats'),
+  getUsers: () => api.get('/admin/users'),
+  getOrders: () => api.get('/admin/orders'),
   createProduct: (data: any) => api.post('/products', data),
   updateProduct: (id: string, data: any) => api.put(`/products/${id}`, data),
   deleteProduct: (id: string) => api.delete(`/products/${id}`),

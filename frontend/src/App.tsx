@@ -17,14 +17,18 @@ import SearchResults from './pages/SearchResults';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import Success from './pages/Success';
+import SubscriptionSuccess from './pages/SubscriptionSuccess';
 import OrderHistory from './pages/OrderHistory';
 import OrderDetail from './pages/OrderDetail';
 import Profile from './pages/Profile';
 import Account from './pages/Account';
 import AccountSection from './pages/AccountSection';
 import Wishlist from './pages/Wishlist';
+import Plans from './pages/Plans';
 import AdminDashboard from './pages/AdminDashboard';
 import ManageProducts from './pages/ManageProducts';
+import AdminUsers from './pages/AdminUsers';
+import AdminOrders from './pages/AdminOrders';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import Terms from './pages/Terms';
 import Contact from './pages/Contact';
@@ -69,6 +73,8 @@ const App: React.FC = () => {
               <Routes>
                 <Route index element={<AdminDashboard />} />
                 <Route path="products" element={<ManageProducts />} />
+                <Route path="users" element={<AdminUsers />} />
+                <Route path="orders" element={<AdminOrders />} />
                 <Route path="*" element={<Navigate to="/admin" />} />
               </Routes>
             </AdminLayout>
@@ -89,9 +95,11 @@ const App: React.FC = () => {
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/contact" element={<Contact />} />
+              <Route path="/plans" element={<Plans />} />
               
               <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
               <Route path="/checkout/success" element={<ProtectedRoute><Success /></ProtectedRoute>} />
+              <Route path="/subscription/success" element={<ProtectedRoute><SubscriptionSuccess /></ProtectedRoute>} />
               <Route path="/orders" element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
               <Route path="/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

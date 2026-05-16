@@ -2,7 +2,7 @@
 
 ![Shophub Screenshot](frontend/public/screenshot-with-background.png)
 
-Shophub is a production-grade e-commerce platform built with modern technologies. It features seamless Stripe payments, a high-performance Redis-cached catalog, and JWT-based authentication with httpOnly cookies and secure password hashing. There's also a comprehensive admin dashboard with sales analytics and full inventory management.
+Shophub is a production-grade e-commerce platform built with modern technologies. It features an **AI Shopping Assistant**, seamless Stripe **Subscriptions**, a high-performance Redis-cached catalog, and JWT-based authentication. There's also a comprehensive admin dashboard with sales analytics, user management, and full inventory control.
 
 ---
 
@@ -14,21 +14,28 @@ Shophub is a production-grade e-commerce platform built with modern technologies
 | Styling | Tailwind CSS |
 | State Management | Zustand + TanStack Query |
 | Backend | FastAPI (Python) |
-| Database | MongoDB (async via Motor) |
+| Database | PostgreSQL (async via SQLAlchemy) |
 | Caching | Redis via Upstash |
-| Payments | Stripe |
+| AI | OpenAI GPT-3.5 (Discovery & Recs) |
+| Payments | Stripe (One-time & Subscriptions) |
 | Auth | JWT with httpOnly cookies |
 
 ---
 
 ## Key Features
 
-- **Stripe Payments** — seamless checkout integration
-- **Redis Caching** — high-performance product catalog via Upstash
-- **JWT Authentication** — secure httpOnly cookies with password hashing
-- **Admin Dashboard** — sales analytics and inventory management
-- **Async Backend** — FastAPI with Motor for non-blocking MongoDB operations
-- **Fully Responsive** — modern design on all screen sizes
+- **AI Shopping Assistant** — Floating chat widget for natural language product discovery
+- **Subscription System** — Tiered membership plans (Pro/Business) with recurring Stripe billing
+- **Advanced Admin Dashboard** — Comprehensive views for Users, Orders, and Inventory
+- **Stripe Payments** — Secure checkout for both one-time purchases and subscriptions
+- **Redis Caching** — High-performance product catalog via Upstash
+- **JWT Authentication** — Secure httpOnly cookies with password hashing
+- **Async Backend** — FastAPI with SQLAlchemy for non-blocking PostgreSQL operations
+- **Fully Responsive** — Modern design optimized for all screen sizes
+- **Advanced Search & Filters** — Full-text search, category/price sorting with debounced queries
+- **Order Tracking** — Real-time status updates and purchase history
+- **Comprehensive Testing** — Pytest backend + Vitest frontend validation
+- **Type-Safe APIs** — Full OpenAPI schema with Pydantic models + TypeScript interfaces
 
 ---
 
@@ -48,7 +55,7 @@ source venv/bin/activate            # Mac/Linux
 pip install -r requirements.txt
 
 # Setup environment
-copy .env.example .env             # Fill in your credentials
+copy .env.example .env             # Fill in your PostgreSQL credentials
 
 # Run server
 uvicorn app.main:app --reload
@@ -80,18 +87,18 @@ UI available at: `http://localhost:5173`
 ### Backend `.env`
 
 ```env
-MONGODB_URL=your-mongodb-atlas-url
+POSTGRESQL_URI=postgresql+asyncpg://user:password@localhost:5432/shophub
 REDIS_URL=your-upstash-redis-url
 STRIPE_SECRET_KEY=sk_test_xxxxx
 STRIPE_WEBHOOK_SECRET=whsec_xxxxx
-JWT_SECRET_KEY=your-secret-key
+JWT_SECRET=your-secret-key
 JWT_ALGORITHM=HS256
 ```
 
 ### Frontend `.env`
 
 ```env
-VITE_API_URL=http://127.0.0.1:8000
+VITE_API_URL=http://127.0.0.1:8000/api/v1
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
 ```
 
@@ -118,28 +125,6 @@ python health_check.py
 
 ## Deployment
 
-Recommended free-tier setup:
-
-| Service | Platform | Notes |
-|---|---|---|
-| Backend API | Render | Uses `render.yaml` |
-| Frontend | Vercel | Use `frontend` as the project root |
-| Database | MongoDB Atlas | Set `MONGODB_URI` in Render |
-| Redis Cache | Upstash | Optional, set `REDIS_URL` in Render |
-
-### Render Backend
-
-1. Connect this GitHub repository in Render.
-2. Choose **Blueprint** deployment so Render reads `render.yaml`.
-3. Set the required environment variables:
-
-```env
-MONGODB_URI=your-mongodb-atlas-url
-FRONTEND_URL=https://your-vercel-app.vercel.app
-```
-
-Add Stripe, Google, Cloudinary, OpenAI, Redis, and SMTP variables only if you use those features.
-
 ### Vercel Frontend
 
 Create a Vercel project with:
@@ -153,7 +138,7 @@ Output Directory: dist
 Set:
 
 ```env
-VITE_API_URL=https://your-render-service.onrender.com/api/v1
+VITE_API_URL=https://your-api-domain.example.com/api/v1
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
 VITE_GOOGLE_CLIENT_ID=your-google-client-id
 ```

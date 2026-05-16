@@ -1,9 +1,13 @@
+"""Order model for PostgreSQL."""
+
+import uuid
 from enum import Enum
-from typing import List, Optional
+from typing import Optional
 
-from pydantic import Field
+from sqlalchemy import Float, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import MongoBaseModel
+from app.models.base import BaseModel
 
 
 class OrderStatus(str, Enum):
@@ -14,29 +18,42 @@ class OrderStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class OrderItem(MongoBaseModel):
-    product_id: str
-    name: str
-    price: float
-    quantity: int
-    image: Optional[str] = None
+class ShippingAddress(BaseModel):
+    """Shipping address model for PostgreSQL."""
+
+    __tablename__ = "shipping_addresses"
+
+    full_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    address_line: Mapped[str] = mapped_column(String(500), nullable=False)
+    city: Mapped[str] = mapped_column(String(100), nullable=False)
+    state: Mapped[str] = mapped_column(String(100), nullable=False)
+    zip_code: Mapped[str] = mapped_column(String(20), nullable=False)
+    country: Mapped[str] = mapped_column(String(100), nullable=False)
 
 
-class ShippingAddress(MongoBaseModel):
-    full_name: str
-    address_line: str
-    city: str
-    state: str
-    zip_code: str
-    country: str
+class Order(BaseModel):
+    """Order model for PostgreSQL."""
+
+    __tablename__ = "orders"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    total: Mapped[float] = mapped_column(Float, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default=OrderStatus.PENDING.value)
+    shipping_address_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shipping_addresses.id"), nullable=False)
+    stripe_session_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    shipping_address: Mapped[ShippingAddress] = relationship("ShippingAddress")
+    items: Mapped[list["OrderItem"]] = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
 
 
-class Order(MongoBaseModel):
-    """Order model for MongoDB."""
+class OrderItem(BaseModel):
+    """Order item model for PostgreSQL."""
 
-    user_id: str
-    items: List[OrderItem]
-    total: float
-    status: OrderStatus = OrderStatus.PENDING
-    shipping_address: ShippingAddress
-    stripe_session_id: Optional[str] = None
+    __tablename__ = "order_items"
+
+    order_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("orders.id"), nullable=False)
+    product_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("products.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    image: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    order: Mapped[Order] = relationship("Order", back_populates="items")

@@ -1,27 +1,20 @@
 ﻿"""Shared test fixtures for pytest."""
 
 import asyncio
+import uuid
 import pytest
 from httpx import ASGITransport, AsyncClient
 from app.main import app
-from app.core.database import get_db, connect_db, close_db
+from app.core.database import get_session, connect_db, close_db, create_tables
 from app.core.redis import connect_redis, close_redis
 from app.core.security import hash_password, create_access_token
-from bson import ObjectId
+from app.models.user import User, UserRole
+from app.models.product import Product
 
 
 @pytest.fixture(scope="session")
 def event_loop():
-    """Create and set an event loop for the test session.
-
-    The original implementation created a new loop but never set it as the
-    current loop for the running thread.  AsyncIO objects (e.g., Motor's
-    ``AsyncIOMotorClient``) bind to the loop retrieved via ``asyncio.get_event_loop``.
-    When the test client (httpx) operates on a different loop, futures become
-    attached to the wrong loop, resulting in ``RuntimeError: Future attached to a
-    different loop`` errors.  By explicitly calling ``asyncio.set_event_loop`` we
-    ensure all async components share the same loop throughout the test session.
-    """
+    """Create and set an event loop for the test session."""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     yield loop
@@ -32,6 +25,7 @@ def event_loop():
 async def setup_db():
     """Connect to test database once per session."""
     await connect_db()
+    await create_tables() # Ensure tables exist
     await connect_redis()
     yield
     await close_redis()
@@ -49,62 +43,100 @@ async def client(setup_db):
 @pytest.fixture
 async def test_user(setup_db):
     """Create a test user and return user dict with auth cookie value."""
-    db = get_db()
-    user_doc = {
-        "name": "Test User",
-        "email": f"testuser_{ObjectId()}@test.com",
-        "password": hash_password("TestPass123"),
-        "role": "user",
-        "avatar": None,
-        "created_at": "2024-01-01T00:00:00+00:00",
-    }
-    result = await db.users.insert_one(user_doc)
-    user_id = str(result.inserted_id)
-    token = create_access_token(user_id)
-    yield {"id": user_id, "email": user_doc["email"], "token": token, "name": user_doc["name"]}
-    await db.users.delete_one({"_id": result.inserted_id})
+    async with get_session() as session:
+        user = User(
+            name="Test User",
+            email=f"testuser_{uuid.uuid4()}@test.com",
+            password=hash_password("TestPass123"),
+            role=UserRole.USER.value,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        
+        user_id = str(user.id)
+        token = create_access_token(user_id)
+        user_dict = {"id": user_id, "email": user.email, "token": token, "name": user.name}
+        
+    yield user_dict
+    
+    async with get_session() as session:
+        result = await session.execute(select(User).where(User.id == uuid.UUID(user_id)))
+        user = result.scalar_one_or_none()
+        if user:
+            await session.delete(user)
+            await session.commit()
 
 
 @pytest.fixture
 async def admin_user(setup_db):
     """Create an admin user and return user dict with auth cookie value."""
-    db = get_db()
-    user_doc = {
-        "name": "Admin User",
-        "email": f"admin_{ObjectId()}@test.com",
-        "password": hash_password("AdminPass123"),
-        "role": "admin",
-        "avatar": None,
-        "created_at": "2024-01-01T00:00:00+00:00",
-    }
-    result = await db.users.insert_one(user_doc)
-    user_id = str(result.inserted_id)
-    token = create_access_token(user_id)
-    yield {"id": user_id, "email": user_doc["email"], "token": token, "name": user_doc["name"]}
-    await db.users.delete_one({"_id": result.inserted_id})
+    async with get_session() as session:
+        user = User(
+            name="Admin User",
+            email=f"admin_{uuid.uuid4()}@test.com",
+            password=hash_password("AdminPass123"),
+            role=UserRole.ADMIN.value,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        
+        user_id = str(user.id)
+        token = create_access_token(user_id)
+        user_dict = {"id": user_id, "email": user.email, "token": token, "name": user.name}
+        
+    yield user_dict
+    
+    async with get_session() as session:
+        result = await session.execute(select(User).where(User.id == uuid.UUID(user_id)))
+        user = result.scalar_one_or_none()
+        if user:
+            await session.delete(user)
+            await session.commit()
 
 
 @pytest.fixture
 async def test_product(setup_db):
     """Create a test product and return its dict."""
-    db = get_db()
-    product_doc = {
-        "name": "Test Product for Tests",
-        "description": "A test product used in automated tests.",
-        "price": 49.99,
-        "category": "TestCategory",
-        "stock": 100,
-        "images": ["https://placehold.co/400x400"],
-        "average_rating": 4.5,
-        "review_count": 0,
-        "created_at": "2024-01-01T00:00:00+00:00",
-    }
-    result = await db.products.insert_one(product_doc)
-    product_doc["id"] = str(result.inserted_id)
-    yield product_doc
-    await db.products.delete_one({"_id": result.inserted_id})
+    async with get_session() as session:
+        product = Product(
+            name="Test Product for Tests",
+            description="A test product used in automated tests.",
+            price=49.99,
+            category="TestCategory",
+            stock=100,
+            images=[],
+            average_rating=4.5,
+            review_count=0,
+        )
+        session.add(product)
+        await session.commit()
+        await session.refresh(product)
+        
+        product_id = str(product.id)
+        product_dict = {
+            "id": product_id,
+            "name": product.name,
+            "description": product.description,
+            "price": product.price,
+            "category": product.category,
+            "stock": product.stock,
+        }
+        
+    yield product_dict
+    
+    async with get_session() as session:
+        result = await session.execute(select(Product).where(Product.id == uuid.UUID(product_id)))
+        product = result.scalar_one_or_none()
+        if product:
+            await session.delete(product)
+            await session.commit()
 
 
 def auth_cookies(token: str) -> dict:
     """Return cookies dict for authenticated requests."""
     return {"access_token": token}
+
+
+from sqlalchemy import select

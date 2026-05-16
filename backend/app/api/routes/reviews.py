@@ -1,11 +1,15 @@
 """Product review routes."""
 
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select, desc
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.database import get_session
 from app.middleware.auth import get_current_user
+from app.models.review import Review
+from app.models.product import Product
 from app.schemas.review import ReviewCreate, ReviewResponse
-from app.utils.helpers import serialize_docs, to_object_id, utc_now
 
 router = APIRouter(prefix="/reviews", tags=["reviews"])
 
@@ -13,82 +17,117 @@ router = APIRouter(prefix="/reviews", tags=["reviews"])
 @router.get("/{product_id}", response_model=list[ReviewResponse])
 async def list_product_reviews(product_id: str):
     """List all reviews for a specific product."""
-    db = get_db()
-    cursor = db.reviews.find({"product_id": product_id}).sort("created_at", -1)
-    reviews = await cursor.to_list(None)
-    return serialize_docs(reviews)
+    try:
+        product_uuid = uuid.UUID(product_id)
+    except ValueError:
+        return []
+        
+    async with get_session() as session:
+        result = await session.execute(
+            select(Review).where(Review.product_id == product_uuid).order_by(desc(Review.created_at))
+        )
+        reviews = result.scalars().all()
+        return [
+            ReviewResponse(
+                id=str(r.id),
+                product_id=str(r.product_id),
+                user_id=str(r.user_id),
+                user_name=r.user_name,
+                rating=r.rating,
+                comment=r.comment,
+                created_at=r.created_at.isoformat()
+            ) for r in reviews
+        ]
 
 
 @router.post("", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
 async def create_review(body: ReviewCreate, user: dict = Depends(get_current_user)):
     """Post a review for a product (one per user)."""
-    db = get_db()
+    user_uuid = uuid.UUID(user["id"])
+    product_uuid = uuid.UUID(body.product_id)
     
-    # Check if user already reviewed this product
-    existing = await db.reviews.find_one({
-        "product_id": body.product_id,
-        "user_id": user["id"]
-    })
-    if existing:
-        raise HTTPException(status_code=400, detail="Product already reviewed by this user")
+    async with get_session() as session:
+        # Check if user already reviewed this product
+        result = await session.execute(
+            select(Review).where(Review.product_id == product_uuid).where(Review.user_id == user_uuid)
+        )
+        if result.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Product already reviewed by this user")
 
-    # Verify product exists
-    product = await db.products.find_one({"_id": to_object_id(body.product_id)})
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        # Verify product exists
+        result = await session.execute(select(Product).where(Product.id == product_uuid))
+        product = result.scalar_one_or_none()
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
 
-    # Save review
-    review_doc = {
-        "product_id": body.product_id,
-        "user_id": user["id"],
-        "user_name": user["name"],
-        "rating": body.rating,
-        "comment": body.comment,
-        "created_at": utc_now(),
-    }
-    result = await db.reviews.insert_one(review_doc)
-    review_doc["id"] = str(result.inserted_id)
+        # Save review
+        review = Review(
+            product_id=product_uuid,
+            user_id=user_uuid,
+            user_name=user["name"],
+            rating=body.rating,
+            comment=body.comment,
+        )
+        session.add(review)
+        
+        # Update product average rating and review count
+        new_count = product.review_count + 1
+        old_avg = product.average_rating
+        new_avg = ((old_avg * (new_count - 1)) + body.rating) / new_count
+        
+        product.average_rating = new_avg
+        product.review_count = new_count
+        
+        await session.commit()
+        await session.refresh(review)
 
-    # Update product average rating and review count
-    new_count = product.get("review_count", 0) + 1
-    old_avg = product.get("average_rating", 0.0)
-    new_avg = ((old_avg * (new_count - 1)) + body.rating) / new_count
-    
-    await db.products.update_one(
-        {"_id": to_object_id(body.product_id)},
-        {"$set": {"average_rating": new_avg, "review_count": new_count}}
-    )
-
-    return review_doc
+        return ReviewResponse(
+            id=str(review.id),
+            product_id=str(review.product_id),
+            user_id=str(review.user_id),
+            user_name=review.user_name,
+            rating=review.rating,
+            comment=review.comment,
+            created_at=review.created_at.isoformat()
+        )
 
 
 @router.delete("/{review_id}")
 async def delete_review(review_id: str, user: dict = Depends(get_current_user)):
     """Delete a review (own review or admin)."""
-    db = get_db()
-    review = await db.reviews.find_one({"_id": to_object_id(review_id)})
-    if not review:
+    user_uuid = uuid.UUID(user["id"])
+    try:
+        review_uuid = uuid.UUID(review_id)
+    except ValueError:
         raise HTTPException(status_code=404, detail="Review not found")
-    
-    if review["user_id"] != user["id"] and user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized to delete this review")
-
-    await db.reviews.delete_one({"_id": to_object_id(review_id)})
-    
-    # Recalculate product rating (simplified: just decrement count, 
-    # real production should re-average properly from all reviews)
-    product = await db.products.find_one({"_id": to_object_id(review["product_id"])})
-    if product and product.get("review_count", 0) > 0:
-        new_count = product["review_count"] - 1
-        if new_count == 0:
-            new_avg = 0.0
-        else:
-            # This is an approximation. A full recalculation would be better.
-            new_avg = ((product["average_rating"] * (new_count + 1)) - review["rating"]) / new_count
         
-        await db.products.update_one(
-            {"_id": to_object_id(review["product_id"])},
-            {"$set": {"average_rating": new_avg, "review_count": new_count}}
-        )
+    async with get_session() as session:
+        result = await session.execute(select(Review).where(Review.id == review_uuid))
+        review = result.scalar_one_or_none()
+        if not review:
+            raise HTTPException(status_code=404, detail="Review not found")
+        
+        if review.user_id != user_uuid and user["role"] != "admin":
+            raise HTTPException(status_code=403, detail="Not authorized to delete this review")
+
+        product_uuid = review.product_id
+        rating = review.rating
+        
+        await session.delete(review)
+        
+        # Recalculate product rating
+        result = await session.execute(select(Product).where(Product.id == product_uuid))
+        product = result.scalar_one_or_none()
+        if product and product.review_count > 0:
+            new_count = product.review_count - 1
+            if new_count == 0:
+                new_avg = 0.0
+            else:
+                new_avg = ((product.average_rating * (new_count + 1)) - rating) / new_count
+            
+            product.average_rating = new_avg
+            product.review_count = new_count
+        
+        await session.commit()
 
     return {"message": "Review deleted"}

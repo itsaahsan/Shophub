@@ -1,4 +1,4 @@
-﻿"""Pydantic schemas for product-related request/response validation."""
+"""Pydantic schemas for product-related request/response validation."""
 
 from pydantic import BaseModel, Field
 
@@ -10,7 +10,8 @@ class ProductCreate(BaseModel):
     category: str = Field(..., min_length=2, max_length=100)
     stock: int = Field(..., ge=0)
     images: list[str] = []  # Cloudinary URLs
-    original_images: list[str] = []  # Original image URLs (non‑thumbnail)
+    original_images: list[str] = []  # Original image URLs (non-thumbnail)
+    vendor_id: str | None = None  # Optional vendor ID
 
 
 class ProductUpdate(BaseModel):
@@ -21,6 +22,7 @@ class ProductUpdate(BaseModel):
     stock: int | None = Field(None, ge=0)
     images: list[str] | None = None
     original_images: list[str] | None = None
+    vendor_id: str | None = None  # Optional vendor ID
 
 
 class ProductResponse(BaseModel):
@@ -35,6 +37,8 @@ class ProductResponse(BaseModel):
     average_rating: float = 0.0
     review_count: int = 0
     created_at: str
+    vendor_id: str | None = None
+    vendor_name: str | None = None
 
 
 class ProductListResponse(BaseModel):

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Star, ShoppingCart, Truck, RotateCcw, Share2, Info } from 'lucide-react';
@@ -35,6 +35,15 @@ const ProductDetail: React.FC = () => {
     queryFn: () => reviewApi.list(id!).then(res => res.data),
     enabled: !!id,
   });
+
+  useEffect(() => {
+    if (product) {
+      const viewed = JSON.parse(localStorage.getItem('recentlyViewed') || '[]');
+      const filtered = viewed.filter((p: any) => p.id !== product.id);
+      const updated = [product, ...filtered].slice(0, 8);
+      localStorage.setItem('recentlyViewed', JSON.stringify(updated));
+    }
+  }, [product]);
 
   const reviewMutation = useMutation({
     mutationFn: (data: any) => reviewApi.create(data),

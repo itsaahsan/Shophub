@@ -3,8 +3,29 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'vendor';
   avatar?: string;
+}
+
+// Subscription types
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  billing_cycle: 'monthly' | 'yearly';
+  features: string[];
+}
+
+export interface Subscription {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  status: 'active' | 'cancelled' | 'past_due' | 'unpaid';
+  start_date: string;
+  end_date?: string;
+  stripe_subscription_id?: string;
+  plan: SubscriptionPlan;
 }
 
 // Product types

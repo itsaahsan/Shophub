@@ -1,13 +1,20 @@
-from pydantic import Field
+"""Review model for PostgreSQL."""
 
-from app.models.base import MongoBaseModel
+import uuid
+
+from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import BaseModel
 
 
-class Review(MongoBaseModel):
-    """Product review model for MongoDB."""
+class Review(BaseModel):
+    """Product review model for PostgreSQL."""
 
-    product_id: str
-    user_id: str
-    user_name: str
-    rating: int = Field(..., ge=1, le=5)
-    comment: str
+    __tablename__ = "reviews"
+
+    product_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("products.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    user_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-5
+    comment: Mapped[str] = mapped_column(Text, nullable=False)

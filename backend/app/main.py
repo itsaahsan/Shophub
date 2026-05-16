@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.core.database import close_db, connect_db
+from app.core.database import close_db, connect_db, create_tables
 from app.core.redis import close_redis, connect_redis
 from app.services.cloudinary_service import configure_cloudinary
 from app.services.openai_service import init_openai
@@ -24,6 +24,10 @@ from app.api.routes import (
     reviews,
     recommendations,
     admin,
+    coupons,
+    vendors,
+    subscriptions,
+    ai,
 )
 
 
@@ -35,6 +39,7 @@ async def lifespan(app: FastAPI):
     configure_cloudinary()
     init_openai()
     if db is not None:
+        await create_tables()
         await seed_products_if_empty()
     yield
     await close_redis()
@@ -76,6 +81,10 @@ for router in [
     reviews.router,
     recommendations.router,
     admin.router,
+    coupons.router,
+    vendors.router,
+    subscriptions.router,
+    ai.router,
 ]:
     app.include_router(router, prefix=settings.API_V1_PREFIX)
 

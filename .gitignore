@@ -40,6 +40,8 @@ dist/
 build/
 .next/
 out/
+.netlify/
+frontend/.netlify/
 
 # IDE
 .vscode/
@@ -73,3 +75,6 @@ nul
 
 # Backend
 backend/cookies.txt
+
+# Aider
+.aider*

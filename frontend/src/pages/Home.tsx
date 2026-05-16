@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import api from '../lib/axios';
 import ProductCard from '../components/product/ProductCard';
@@ -28,7 +28,7 @@ const Home: React.FC = () => {
   } = useInfiniteQuery({
     queryKey: ['products', selectedCategory],
     queryFn: async ({ pageParam = 1 }) => {
-      const params: any = { page: pageParam };
+      const params: any = { page: pageParam, per_page: 100 };
       if (selectedCategory) params.category = selectedCategory;
       const { data } = await api.get('/products', { params });
       return data;
@@ -47,6 +47,13 @@ const Home: React.FC = () => {
       return data;
     },
   });
+
+  const [recentlyViewed, setRecentlyViewed] = useState<Product[]>([]);
+
+  useEffect(() => {
+    const viewed = JSON.parse(localStorage.getItem('recentlyViewed') || '[]');
+    setRecentlyViewed(viewed.slice(0, 4));
+  }, []);
 
   const allProducts = data?.pages.flatMap((page: any) => page.products) || [];
   const total = data?.pages[0]?.total || 0;
@@ -125,6 +132,23 @@ const Home: React.FC = () => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
             {recommendations.slice(0, 4).map((product: Product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Recently Viewed */}
+      {recentlyViewed.length > 0 && (
+        <section className="container mx-auto px-4">
+          <div className="flex items-center justify-between mb-10">
+            <div>
+              <h2 className="text-2xl font-extrabold text-primary tracking-tight">Recently Viewed</h2>
+              <p className="text-sm text-muted">Continue where you left off.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
+            {recentlyViewed.map((product: Product) => (
               <ProductCard key={product.id} product={product} />
             ))}
           </div>
